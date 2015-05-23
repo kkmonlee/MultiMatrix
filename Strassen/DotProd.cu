@@ -6,7 +6,7 @@
 #include <cuda.h>
 #include <assert.h>
 #include <cmath>
-#include <cudaTimer.h>
+#include "cudaTimer.h"
 
 cublasHandle_t handler;
 
@@ -217,7 +217,45 @@ int main(int argc, char **argv) {
 
 	// Timerino
 
-	cudaTimer ct;
+	CudaTimer ct;
+	ct.start();
+	for (int i = 0; i < iter; i++) {
+		Strassen(dA, dB, dC, F, E, E, F, E, E, D, F, D, depth);
+	
+	}
+	ct.stop();
+	double Strassen_Time = ct.value() / iter;
+	cudaMemcpy(hC, dC, memsizeC, cudaMemcpyDeviceToHost);
 
+#if 1
+	ct.start();
+	for (int i = 0; i < iter; i++)
+		cublasVerification(dA, dB, dC, D, E, F);
+	ct.stop();
+	double cublasTime = ct.value() / iter;
+	cudaMemcpy(vC, dC, memsizeC, cudaMemcpyDeviceToHost);
+	double speed = cublasTime / Strassen_Time;
+	printf("%d %d %d %.2f %.2f %.2f\n", D, E, F, Strassen_Time, cublasTime, speed);
+#endif
 
+	if (check) {
+		double absoluteErr = 0.0;
+		for (int i = 0; i < sizeC; ++i)
+			absoluteErr += abs(hC[i] - vC[i]);
+		if (absoluteErr > 1) printf("Check absolute error: %lf\n", absoluteErr);
+	}
+
+	// Relieve memory
+	free(hA);
+	free(hB);
+	free(hC);
+	free(vC);
+	cudaFree(dA);
+	cudaFree(dB);
+	cudaFree(dC);
+
+	if (cublasDestroy(handler) != CUBLAS_STATUS_SUCCESS) {
+		fprintf(stderr, "Error occurred during CUBLAS shutdown.\n"); fflush(NULL);
+		return EXIT_FAILURE;
+	}
 }
